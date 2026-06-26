@@ -14,6 +14,9 @@ permissions:
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/dogecoind
+  # Build floor: only this tag and anything newer are ever built. Old releases are
+  # never backfilled. Bump this when you intentionally want to start from a new baseline.
+  MIN_VERSION: v1.14.9
 
 jobs:
   discover:
@@ -28,11 +31,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Only the 1.14.x release series — older series (1.4–1.10) require legacy
-          # OpenSSL 1.0 / Boost / BDB 4.8 toolchains this Dockerfile does not provide,
-          # so they cannot build on Debian bookworm.
+          # Take every semver release tag, sort ascending by version, then keep only
+          # MIN_VERSION and anything newer. This builds the latest release now and any
+          # future releases automatically, but never backfills older ones. (Old series
+          # also need legacy OpenSSL/Boost/BDB toolchains this image does not provide.)
           gh api repos/dogecoin/dogecoin/tags --paginate -q '.[].name' \
-            | grep -E '^v1\.14\.[0-9]+$' | sort -u > upstream.txt
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -uV \
+            | awk -v min="$MIN_VERSION" '$0==min{f=1} f{print}' > upstream.txt
 
           # Tags already published to GHCR for this user/org.
           # Container image tags are stored without the leading "v"; re-add it to compare.

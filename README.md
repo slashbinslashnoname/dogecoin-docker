@@ -83,9 +83,10 @@ volumes:
 ## How it works
 
 - **`.github/workflows/build.yml`** — runs on a daily cron (and on manual
-  `workflow_dispatch`). The `discover` job lists upstream tags, subtracts the tags
-  already in the registry, and feeds the remainder into a build matrix. Re-runs are
-  cheap no-ops; the first run backfills the whole release history.
+  `workflow_dispatch`). The `discover` job lists upstream tags, keeps only
+  `MIN_VERSION` and newer, subtracts the tags already in the registry, and feeds the
+  remainder into a build matrix. Re-runs are cheap no-ops; older releases below
+  `MIN_VERSION` are never built. Bump `MIN_VERSION` to move the baseline.
 - **`Dockerfile`** — a multi-stage build. CI checks out the dogecoin source *at the
   target tag* into the build context, so `COPY . .` compiles that exact release.
 
