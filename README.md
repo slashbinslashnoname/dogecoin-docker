@@ -1,6 +1,6 @@
 # dogecoin-docker
 
-![Doge riding a rocket to the moon](assets/doge-to-the-moon.png)
+![Doge riding a rocket to the moon](assets/doge-to-the-moon.webp)
 
 Unofficial, automatically-built Docker images of [Dogecoin Core](https://github.com/dogecoin/dogecoin).
 
