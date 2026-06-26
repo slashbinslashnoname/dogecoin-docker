@@ -28,9 +28,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # All upstream release tags (v1.x.y).
+          # Only the 1.14.x release series — older series (1.4–1.10) require legacy
+          # OpenSSL 1.0 / Boost / BDB 4.8 toolchains this Dockerfile does not provide,
+          # so they cannot build on Debian bookworm.
           gh api repos/dogecoin/dogecoin/tags --paginate -q '.[].name' \
-            | grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -u > upstream.txt
+            | grep -E '^v1\.14\.[0-9]+$' | sort -u > upstream.txt
 
           # Tags already published to GHCR for this user/org.
           # Container image tags are stored without the leading "v"; re-add it to compare.
