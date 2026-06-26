@@ -1,0 +1,106 @@
+name: Build Dogecoin images
+
+# GitHub does not deliver tag events from a repo you don't own, so we poll
+# dogecoin/dogecoin on a schedule and build any release tag we haven't published yet.
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily at 06:00 UTC
+  workflow_dispatch:         # allow manual runs
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/dogecoind
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.find.outputs.tags }}
+      newest: ${{ steps.find.outputs.newest }}
+    steps:
+      - name: Find unbuilt upstream tags
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # All upstream release tags (v1.x.y).
+          gh api repos/dogecoin/dogecoin/tags --paginate -q '.[].name' \
+            | grep -E '^v1\.[0-9]+\.[0-9]+$' | sort -u > upstream.txt
+
+          # Tags already published to GHCR for this user/org.
+          # Container image tags are stored without the leading "v"; re-add it to compare.
+          {
+            gh api "users/${{ github.repository_owner }}/packages/container/dogecoind/versions" \
+              -q '.[].metadata.container.tags[]' 2>/dev/null \
+              || gh api "user/packages/container/dogecoind/versions" \
+                   -q '.[].metadata.container.tags[]' 2>/dev/null \
+              || true
+          } | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^/v/' | sort -u > built.txt
+
+          # Build = upstream - built, emitted as a compact JSON array for the matrix.
+          comm -23 upstream.txt built.txt | jq -R . | jq -cs . > todo.json
+          echo "To build: $(cat todo.json)"
+          echo "tags=$(cat todo.json)" >> "$GITHUB_OUTPUT"
+
+          # Highest upstream version overall — only this one gets the :latest tag.
+          newest="$(sort -V upstream.txt | tail -n1)"
+          echo "Newest upstream tag: $newest"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.tags != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJson(needs.discover.outputs.tags) }}
+    steps:
+      - name: Checkout dogecoin source at ${{ matrix.tag }}
+        uses: actions/checkout@v4
+        with:
+          repository: dogecoin/dogecoin
+          ref: ${{ matrix.tag }}
+
+      - name: Bring in the Dockerfile from this repo
+        uses: actions/checkout@v4
+        with:
+          path: .docker-recipe
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          # strip leading "v": v1.14.9 -> 1.14.9 ; also tag x.y -> 1.14
+          ver="${{ matrix.tag }}"; ver="${ver#v}"
+          minor="${ver%.*}"
+          list="${IMAGE}:${ver},${IMAGE}:${minor}"
+          # Only the newest upstream tag gets :latest (avoids backfill clobbering it).
+          if [ "${{ matrix.tag }}" = "${{ needs.discover.outputs.newest }}" ]; then
+            list="${list},${IMAGE}:latest"
+          fi
+          echo "list=${list}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .docker-recipe/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+          provenance: true
+          sbom: true
