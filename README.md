@@ -1,5 +1,7 @@
 # dogecoin-docker
 
+![Doge riding a rocket to the moon](assets/doge-to-the-moon.png)
+
 Unofficial, automatically-built Docker images of [Dogecoin Core](https://github.com/dogecoin/dogecoin).
 
 A scheduled GitHub Actions workflow polls `dogecoin/dogecoin` for new release tags
