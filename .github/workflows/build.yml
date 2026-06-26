@@ -1,4 +1,5 @@
 name: Build Dogecoin images
+# Builds multi-arch Dogecoin Core images from upstream release tags.
 
 # GitHub does not deliver tag events from a repo you don't own, so we poll
 # dogecoin/dogecoin on a schedule and build any release tag we haven't published yet.
@@ -39,7 +40,7 @@ jobs:
               || gh api "user/packages/container/dogecoind/versions" \
                    -q '.[].metadata.container.tags[]' 2>/dev/null \
               || true
-          } | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^/v/' | sort -u > built.txt
+          } | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sed 's/^/v/' | sort -u > built.txt
 
           # Build = upstream - built, emitted as a compact JSON array for the matrix.
           comm -23 upstream.txt built.txt | jq -R . | jq -cs . > todo.json

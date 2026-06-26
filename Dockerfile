@@ -22,7 +22,8 @@ RUN ./autogen.sh && \
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl3 libevent-2.1-7 libevent-pthreads-2.1-7 libboost-system1.74.0 \
-        libboost-filesystem1.74.0 libboost-thread1.74.0 libdb5.3++ \
+        libboost-filesystem1.74.0 libboost-thread1.74.0 libboost-chrono1.74.0 \
+        libboost-program-options1.74.0 libdb5.3++ \
         ca-certificates gosu && \
     rm -rf /var/lib/apt/lists/* && \
     useradd -r -m -d /home/dogecoin dogecoin
